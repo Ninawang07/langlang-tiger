@@ -160,11 +160,11 @@ build_map.py 生成基础 HTML
 
 ### 路线样式约定
 
-| 路线角色 | 样式 | dashArray | 说明 |
-|---------|------|-----------|------|
-| 主要去向路线 | 实线 | 无 | 宽度 3.5，高不透明度 |
-| 返程/分支路线 | 点状虚线 | `"2, 5"` | 宽度 2.5 |
-| 飞航段/轮渡 | 长虚线 | `"6, 8"` | 宽度 1.5，低不透明度 |
+| 路线角色 | 样式 | dashArray | weight | 说明 |
+|---------|------|-----------|--------|------|
+| 返程/主线 | 实线 | 无 | 3.5 | 高不透明度，视觉重心 |
+| 去程/分支 | 点状虚线 | `"2, 5"` | 2.5 | 备选方案应弱于主线 |
+| 飞航段/轮渡 | 长虚线 | `"6, 8"` | 1.5 | opacity 0.7，不抢驾驶路线
 
 ### ⚠️ 致命坑：build_map.py 会覆盖手动修改
 
@@ -194,7 +194,7 @@ L.control.zoom({position: 'topleft'}).addTo(map);
 
 CSS：
 ```css
-.legend.panel { padding: 0; border-radius: 0; max-width: 80%; margin: 0 auto; }
+.legend.panel { padding: 0; border-radius: 10px; max-width: 75%; margin: 0 auto 2px auto; }
 .legend { display: flex; justify-content: center; align-items: stretch; width: 100%; }
 .legend-section {
   display: flex; align-items: flex-start; gap: 10px;
@@ -203,11 +203,11 @@ CSS：
 .legend-section:last-child { border-right: none; }
 ```
 
-JS（底部铺满）：
+JS（底部铺满 + 左侧留白）：
 ```javascript
 (function(){
   var bl = document.querySelector('.leaflet-bottom.leaflet-left');
-  if(bl) { bl.style.width = '100%'; }
+  if(bl) { bl.style.width = '100%'; bl.style.paddingLeft = '4px'; }
 })();
 ```
 
@@ -243,14 +243,35 @@ layers.flight = L.polyline([[from_lat,from_lng], [mid_lat,mid_lng], [to_lat,to_l
 }).bindTooltip("A地 ✈ B地往返", {direction: "right", sticky: true});
 ```
 
+#### 5. 路况标记
+
+使用**半透明黄色三角形**（无边框）标注需注意路段，形状区分于圆形地点标记：
+
+```javascript
+segData.forEach(function(s){
+  var icon = L.divIcon({
+    className: "",
+    html: '<svg width="14" height="14"><polygon points="7,0 14,14 0,14" fill="'+s.color+'" fill-opacity="0.65"/></svg>',
+    iconSize: [14,14], iconAnchor: [7,10]
+  });
+  segMarkers.push(L.marker([s.lat,s.lng], {icon: icon}).bindTooltip(
+    '<b>'+s.title+'</b><br><span style="font-size:10px;color:#666">'+s.sub+'</span>',
+    {className:"mini-tooltip", direction:"top"}
+  ));
+});
+```
+
+**设计原则：** 路况标记用三角形 ▲，城市/地点标记用圆形 ●，形状区分 + 半透明黄色区别于实心圆点。只标注"需注意/难行"路段，路况良好的不标。
+
 ### 颜色体系参考
 
 | 用途 | 色值 | 说明 |
 |------|------|------|
-| 去程主线 | `#7c3aed` | 紫色实线 |
-| 返程线A | `#2563eb` | 蓝色点状虚线 |
-| 返程线B | `#dc2626` | 红色点状虚线 |
+| 返程/主线 | `#dc2626` | 红色实线（唯一实线，视觉重心） |
+| 去程方案A | `#7c3aed` | 紫色点状虚线 |
+| 去程方案B | `#2563eb` | 蓝色点状虚线 |
 | 飞航段 | `#0891b2` | 青色长虚线 |
+| 路况警告 | `#eab308` | 黄色半透明三角 (fill-opacity:0.65) |
 | 终点旗标 | `#059669` | 绿色 |
 
 ---
@@ -276,8 +297,9 @@ cp index.html ~/Desktop/路线地图.html
 |------|------|------|
 | 滚轮缩放没反应 | `zoomSnap`/`zoomDelta`/`wheelPxPerZoomLevel` 未同时设 | 三项全部设为 0.2 / 0.2 / 300 |
 | 加减按钮消失 | 默认 zoom control 被覆盖或 z-index 冲突 | `zoomControl:false` + 手动 `L.control.zoom` |
-| 图例不居中 | `bottomcenter` 不存在 | `bottomleft` + CSS `margin:0 auto` + JS 扩展宽度 |
+| 图例不居中 | `bottomcenter` 不存在 | `bottomleft` + CSS `margin:0 auto` + JS 扩展宽度 + 左侧 `paddingLeft:4px` |
 | 图例竖排 | JS 里设了 `display:inline-block` | 只用 CSS `flex` 控制横向排列 |
+| 图例贴边无呼吸感 | margin 0 | `margin: 0 auto 2px auto` + `border-radius: 10px` |
 | build后UI全部丢失 | `build_map.py` 覆盖 HTML | 记录"必须重新应用的修改"清单 |
 | 路线是直线不是沿路 | 没用 OSRM 拉坐标 | 用 OSRM API 逐段拉取道路曲线 |
 | 东线西线不能同时选 | toggle 含互斥逻辑 | 删除互斥，改用独立的 add/remove 逻辑 |
