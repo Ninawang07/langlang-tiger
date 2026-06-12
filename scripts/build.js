@@ -83,6 +83,22 @@ function generateHTML(cfg, osmData) {
     const dotStyle = isSolid
       ? `background:${r.color};`
       : `border-top:2px dotted ${r.color};height:0;background:none;`;
+    // 路线途经城市名
+    const detailCities = (r.waypoints || []).map(wp => {
+      const s = stops.find(s => Math.abs(s.lat - wp[0]) < 0.001 && Math.abs(s.lng - wp[1]) < 0.001);
+      return s ? s.name : null;
+    }).filter(Boolean).join(' → ');
+    // 路线上关联的补充信息：飞航 + 路况
+    const routeFlights = flights.filter(f => {
+      // 匹配飞航起点是否在该路线途经点附近
+      return r.waypoints?.some(wp => Math.abs(wp[0] - f.from[0]) < 0.01 && Math.abs(wp[1] - f.from[1]) < 0.01);
+    });
+    const routeConds = roadConds.filter(rc => rc.route === r.id);
+    const extras = [
+      ...routeFlights.map(f => `✈ ${f.label}`),
+      ...(routeConds.length > 0 ? ['▲ 路况注意'] : [])
+    ];
+    const extraStr = extras.length > 0 ? `<span class="route-extra">${extras.join(' · ')}</span>` : '';
     return `<div class="legend-section">
       <span class="dot" style="${dotStyle}"></span>
       <div class="route-info">
@@ -90,11 +106,8 @@ function generateHTML(cfg, osmData) {
           <span class="route-name" style="color:${r.color}">${r.name}</span>
           <span class="route-dist" id="dist-${r.id}">计算中...</span>
         </div>
-        <span class="route-detail">${(r.waypoints || []).map((_,i,arr) => {
-          // 用途经城市名
-          const cityStops = stops.filter(s => arr.some(w => w[0] === s.lat && w[1] === s.lng));
-          return cityStops.map(s => s.name).join(' → ') || '...';
-        })}</span>
+        <span class="route-detail">${detailCities || '·'}</span>
+        ${extraStr}
       </div>
     </div>`;
   }).join('\n');
