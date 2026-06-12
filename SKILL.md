@@ -7,9 +7,11 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
 
 ## Overview
 
-四阶段流水线：用户口述出行意图 → AI 做路线研究和方案对比 → 生成交互式 Leaflet 地图 → 部署到网页。
+四阶段流水线：用户口述出行意图 → 结构化路线分析 → 脚本自动化构建地图 → 部署到网页。
 
 **核心原则**: 数据驱动，组件通用，判断点明确。每次只让用户做最低限度的决策。
+
+**与早期版本的区别**：此版本从"对话驱动"重构为"结构化流水线"——每个阶段有明确的 YAML 输入约束、脚本自动化入口、UI 规则库引用。模型不再需要记忆设计细节，而是按规范执行。
 
 ---
 
@@ -21,40 +23,96 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
     ▼
 ┌─────────────────────────────┐
 │ 阶段一：路线规划              │  ← 判断密集：选方案/口岸/节点
-│  天气→政策→方案矩阵→YAML     │
+│  天气→政策→矩阵→YAML         │
 └──────────────┬──────────────┘
                │
                ▼
 ┌─────────────────────────────┐
-│ 阶段二：地图构建              │  ← 全自动：OSRM拉取+HTML生成
-│  YAML→坐标→基础地图          │
+│ 阶段二：地图构建              │  ← 全自动：脚本 + OSRM
+│  YAML→坐标→HTML骨架           │
 └──────────────┬──────────────┘
                │
                ▼
 ┌─────────────────────────────┐
-│ 阶段三：UI 定制               │  ← 低判断：颜色/宽度/顺序微调
-│  图例/筛选/缩放/飞航段       │
+│ 阶段三：UI 定制               │  ← 全自动：规则库注入
+│  按清单逐项注入 UI 组件       │
 └──────────────┬──────────────┘
                │
                ▼
 ┌─────────────────────────────┐
-│ 阶段四：部署                  │  ← 全自动
-│  CloudStudio + 本地打包       │
+│ 阶段四：部署                  │  ← 确认后执行
+│  CloudStudio + 部署后验证     │
 └─────────────────────────────┘
 ```
+
+---
+## 设计系统：线型 × 颜色
+
+路线的视觉表达由两个**独立维度**决定。两者正交，不可混淆。
+
+### 维度一：线型 = 路线确定性
+
+| 路线角色 | 线型 | dashArray | weight | 
+|---------|------|-----------|--------|
+| 唯一路线（无替代方案）| 实线 | 无 | 3.5 |
+| 可选方案（多选一）| 点状虚线 | `"2, 5"` | 2.5 |
+| 飞航段/轮渡 | 长虚线 | `"6, 8"` | 1.5 |
+
+**规则：线型与方向（去程/返程）无关。** 去程、返程都可以是实线或虚线，取决于是否存在替代路线。
+
+### 维度二：颜色 = 方向/角色
+
+| 路线方向 | 色值 | 色名 |
+|---------|------|------|
+| 去程首选 | `#7c3aed` | 紫色 |
+| 去程备选 | `#2563eb` | 蓝色 |
+| 回程首选 | `#DB536A` | 珊瑚 |
+| 回程备选 | `#d97706` | 琥珀 |
+| 飞航/轮渡 | `#0891b2` | 青色 |
+| 终点标记 | `#059669` | 绿色 |
+| 极值节点 | `#06b6d4` | 青蓝 |
+| 路况警告 | `#eab308` | 黄色 |
+| 途经城市 | `#9ca3af` | 灰色 |
+
+**示例：** 贝加尔湖去程唯一→紫色实线；G331 草原线/中心线二选一→紫色+蓝色虚线；G331 返程唯一→珊瑚实线。
+
+### 节点形状约定
+
+| 节点类型 | 形状 | 尺寸 | 说明 |
+|---------|------|------|------|
+| 起点/终点 | 大圆 ● | radius 8 | circleMarker，配 addLabel 文字 |
+| 口岸/关键城市 | 菱形 ◆ | 15px SVG | 纯色无文字，靠 bindTooltip |
+| 途经城市 | 小圆 ● | radius 6 | 灰色 fill，白色边框 |
+| 路况警告 | 三角 ▲ | 14px SVG | 半透明黄，fill-opacity:0.65 |
+
+### 城市标注规则
+
+- **以城市为主体**：标注名 = "城市名"
+- **相邻合并**：不重复标注
+- **特征后缀**：`城市 · 特征` 格式（如"抚远 · 中国东极"）
+- **极值点用鲜明色**：北极/东极等用 `#06b6d4`
 
 ---
 
 ## 阶段一：路线规划
 
+### 强制约束
+
+阶段一结束时必须产出完整的 YAML 配置，以下字段不可缺省：
+
+- `scenario.type` / `scenario.departure` / `scenario.season` / `scenario.vehicle`
+- 每条 route 必须有 `id` / `name` / `style` / `color`
+- 每个关键节点必须有 `name` / `lat` / `lng` / `node_type`
+- 风险节点必须有 `alerts` 数组
+
 ### 步骤
 
 1. **解析用户意图**：出发地、目的地、时间、出行方式、是否出境
-2. **检索政策法规**（出境游）：签证要求、驾驶证互认、过境手续（如ATA单证册状态）
-3. **分析天气季节**：按出发月份查询沿途气候、路况（冻土/雨季/台风季）
+2. **检索政策法规**（出境游）：签证要求、驾驶证互认、过境手续
+3. **分析天气季节**：按出发月份查询沿途气候、路况
 4. **识别关键节点**：按分类体系标注（见下方）
 5. **方案对比**：用"十字架"矩阵对比不同路线方案
-6. **输出 YAML 配置文件**：结构化记录所有路线、节点、警告信息
+6. **输出 YAML**：按模板填入结构化数据
 
 ### 十字架方案矩阵
 
@@ -69,31 +127,37 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
 
 ```yaml
 scenario:
-  type: domestic               # domestic | international | multi-country
+  type: domestic               # domestic | international
   departure: "YYYY-MM-DD"
   season: summer               # spring | summer | autumn | winter
   vehicle: car                 # car | motorcycle | bicycle | hiking
 
 routes:
-  - id: route_1
-    name: "去程"
-    style: solid               # solid | dotted | dashed
-    color: "#7c3aed"
+  # 每条路线: style=确定性, color=方向（参照设计系统）
+  - id: route_out               # 必填: 唯一标识
+    name: "去程"                 # 必填: 图例显示名
+    style: solid                # solid(唯一) | dashed(可选)
+    color: "#7c3aed"            # 参照颜色表
+    segments:                   # 途经坐标序列
+      - [42.26, 118.89]         # [lat, lng]
+      - [49.58, 117.45]
+  - id: route_ret
+    name: "回程"
+    style: solid
+    color: "#DB536A"
+    segments: [...]
 
 stops:
-  - name: "城市/节点名"
-    lat: 39.90, lng: 116.40
-    node_type: border_out      # 见下方分类体系
-    alerts: ["警告信息"]
-    extra: "备注（音乐节/赛事等）"
+  - name: "城市/节点名"         # 必填
+    lat: 39.90, lng: 116.40     # 必填
+    node_type: border_out       # 必填, 见分类体系
+    alerts:                     # 风险节点必填
+      - "冻土路段，需低速通过"
+    extra: "备注（音乐节/赛事等）" # 选填
 
-filters:                       # 按 node_type 自动生成
+filters:                       # 阶段三自动生成
   - filter_group: "border"
     label: "边境节点"
-  - filter_group: "supply"
-    label: "补给休整"
-  - filter_group: "danger"
-    label: "风险点"
 ```
 
 ---
@@ -137,49 +201,44 @@ filters:                       # 按 node_type 自动生成
 
 ---
 
-## 阶段二：地图构建
+## 阶段二：地图构建（全自动）
 
 ### 技术栈
 - **Leaflet.js** + OpenStreetMap 瓦片
-- **OSRM** 拉取实际道路曲线坐标（非直线）
-- Python 构建脚本生成基础 HTML
+- **OSRM** 拉取实际道路曲线坐标
+- 构建脚本生成基础 HTML
 
-### 构建流程
+### 自动化流程
 
 ```
-YAML 配置文件
+阶段一 YAML 配置
     ↓
-解析途经点坐标
+解析 routes[].segments 途经点坐标
     ↓
-OSRM API 逐段拉取道路曲线 → route_data.json
+逐段调 OSRM API → 道路曲线坐标数组
     ↓
-build_map.py 生成基础 HTML
+脚本生成 HTML 骨架（Leaflet polyline + 坐标硬编码）
     ↓
-手动注入 UI 组件（阶段三）
+输出到 examples/<项目名>/index.html
 ```
 
-### 路线样式约定
+### 构建脚本策略
 
-**核心原则：唯一路线用实线，可选方案用虚线。与方向（去程/返程）无关。**
+优先用已有的 build 脚本或 JS 模板生成 HTML 骨架。如需重新 build，必须先备份阶段三的手动 UI 代码。
 
-| 路线角色 | 样式 | dashArray | weight | 说明 |
-|---------|------|-----------|--------|------|
-| 唯一路线（无替代方案） | 实线 | 无 | 3.5 | 视觉重心，必走的路 |
-| 可选方案（多选一） | 点状虚线 | `"2, 5"` | 2.5 | 备选应弱于必选 |
-| 飞航段/轮渡 | 长虚线 | `"6, 8"` | 1.5 | opacity 0.7，不抢驾驶路线 |
+### ⚠️ 致命坑
 
-**示例：** 贝加尔湖：去程唯一→实线，东/西线二选一→虚线。G331环线：草原/中心二选一→虚线，返程唯一→实线。
-
-### ⚠️ 致命坑：build_map.py 会覆盖手动修改
-
-**`build_map.py` 每次运行都会彻底重写 HTML 文件，所有阶段三的 UI 定制都会被抹掉。**
-因此阶段三的所有修改必须记录成清单，每次 build 后重新应用。
+**每次重新 build 都会覆盖 HTML 文件，阶段三的 UI 定制全部丢失。** 因此阶段三的修改必须：
+1. 完成后导出为独立的 UI 注入脚本
+2. 或者在 build 后按清单逐项重新应用
 
 ---
 
-## 阶段三：UI 定制（通用组件库）
+## 阶段三：UI 定制（规则注入）
 
-### 必须手动应用的配置（每次 build 后）
+阶段三对阶段二产出的 HTML 骨架注入以下 UI 组件。每一项是**强制规则**，不得跳过。
+
+### 注入清单（按顺序）
 
 #### 1. 缩放控制
 ```javascript
@@ -216,6 +275,44 @@ JS（底部铺满 + 左侧留白）：
 ```
 
 **🚨 已知坑：Leaflet 的 `bottomcenter` 不存在，只能用 `bottomleft` + CSS 居中。覆盖 Leaflet 内联样式必须用 `!important`。**
+
+**图例 route-dot 规范：线型可视化**
+
+图例中每条路线左侧的 `.dot` 色块必须反映该路线的**线型**（solid/dashed）：
+
+| 路线线型 | `.dot` CSS | 视觉效果 |
+|---------|-----------|---------|
+| 实线 (唯一路线) | `background:<颜色>;` (默认 28×4px 实心条) | ━━━ |
+| 虚线 (可选方案) | `border-top:2px dotted <颜色>; height:0; background:none;` | ╌╌╌ |
+
+**图例 HTML 模板（每个 legend-section）：**
+```html
+<div class="legend-section">
+  <!-- 实线路线： -->
+  <span class="dot" style="background:#DB536A;"></span>
+  <!-- 虚线路线： -->
+  <span class="dot" style="border-top:2px dotted #7c3aed;height:0;background:none;"></span>
+  <div class="route-info">
+    <div class="row-main">
+      <span class="route-name" style="color:<路线颜色>">路线名称</span>
+      <span class="route-dist">约 XXXX km</span>
+    </div>
+    <span class="route-detail">途经城市序列</span>
+    <span class="route-extra">✈/▲ 补充信息</span>
+  </div>
+</div>
+```
+
+**关键 CSS（补充）：**
+```css
+.legend-section .dot { width: 28px; height: 4px; border-radius: 2px; flex-shrink: 0; margin-top: 3px; }
+.legend-section .route-info { display: flex; flex-direction: column; gap: 2px; }
+.legend-section .row-main { display: flex; align-items: baseline; gap: 8px; }
+.legend-section .route-name { font-size: 14px; font-weight: 700; line-height: 1.2; }
+.legend-section .route-dist { font-size: 10px; color: #94a3b8; font-weight: 400; }
+.legend-section .route-detail { font-size: 11px; color: #1e293b; line-height: 1.35; }
+.legend-section .route-extra { font-size: 10px; color: #64748b; margin-top: 2px; font-style: italic; }
+```
 
 #### 3. 关键节点筛选器
 
@@ -267,31 +364,140 @@ segData.forEach(function(s){
 
 **设计原则：** 路况标记用三角形 ▲，城市/地点标记用圆形 ●，形状区分 + 半透明黄色区别于实心圆点。只标注"需注意/难行"路段，路况良好的不标。
 
-### 颜色体系参考
+#### 6. 城市/口岸标记（菱形图标）
 
-| 用途 | 色值 | 说明 |
-|------|------|------|
-| 唯一路线（必走） | 任意色 | 实线，视觉重心 |
-| 可选方案A | `#7c3aed` | 紫色点状虚线 |
-| 可选方案B | `#2563eb` | 蓝色点状虚线 |
-| 飞航段 | `#0891b2` | 青色长虚线 |
-| 路况警告 | `#eab308` | 黄色半透明三角 (fill-opacity:0.65) |
-| 终点旗标 | `#059669` | 绿色 |
+口岸、关键城市等需要突出但不喧宾夺主的节点，使用 **SVG 纯菱形图标**。
+
+**CSS（必须加入）：**
+```css
+/* 菱形图标投影 */
+.diamond-icon svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2)); }
+```
+
+**JS（必须使用 SVG 实现，禁止 CSS rotate 方案）：**
+```javascript
+// 纯菱形图标（无文字），颜色区分口岸状态
+function diamondIcon(col) {
+  return L.divIcon({
+    className: "diamond-icon",
+    html: '<svg width="15" height="15" viewBox="0 0 22 22">' +
+            '<polygon points="11,2 20,11 11,20 2,11" fill="' + col + '" stroke="#fff" stroke-width="1.5"/>' +
+          '</svg>',
+    iconSize: [15, 15], iconAnchor: [7, 7]
+  });
+}
+```
+
+**关键参数：**
+- `width="15" height="15"` + `viewBox="0 0 22 22"` → 15px 显示尺寸，SVG 内部坐标系用 22x22 保持精度
+- `stroke="#fff" stroke-width="1.5"` → 白边切割地图底色
+- `className: "diamond-icon"` → CSS 投影让图标不"贴"在地图上
+- 纯菱形无文字 → 口岸名称靠 `bindTooltip` 显示
+
+**🚨 禁止：** CSS `transform: rotate(45deg)` + 内层 `rotate(-45deg)` 模拟菱形——Leaflet divIcon 中无法可靠居中，且丢投影。
+
+#### 7. 起点/终点标记
+
+起点和终点使用比普通节点更显眼的标记：
+
+**JS：**
+```javascript
+// 起点：大号圆形 + 静态文字标签
+L.circleMarker([lat,lng], {
+  radius: 8,
+  fillColor: color,      // 与所属路线颜色一致
+  color: "#fff",
+  weight: 2.5,
+  fillOpacity: 1
+}).bindTooltip("城市 · 起点", {direction: "top", className: "mini-tooltip"});
+
+addLabel(lat, lng, '<b style="font-size:11px;color:' + color + '">起点 · 城市名</b>');
+```
+
+`addLabel` 工具函数：
+```javascript
+function addLabel(lat, lng, html, w) {
+  w = w || 160;
+  return L.marker([lat, lng], {
+    icon: L.divIcon({
+      className: "static-label",
+      html: html,
+      iconSize: [w, 14],
+      iconAnchor: [-8, 10]
+    })
+  });
+}
+```
+
+对应 CSS：
+```css
+.static-label {
+  background: none; border: none; box-shadow: none !important;
+  font-size: 11px; color: #1a1a2e; font-weight: 600;
+  white-space: nowrap;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 5px #fff;
+}
+```
+
+#### 8. 城市标注规则
+
+沿途城市的文字标注遵循：
+
+- **以城市为主体**：标注名 = "城市名"，非"景点名"或"路段名"
+- **相邻城市合并**：同一条路线上距离近的城市不重复标注，选最具代表性的
+- **特征城市追加后缀**：`城市 · 特征` 格式，如"抚远 · 中国东极"、"漠河 · 中国北极"、"赤峰 · 起点"
+- **特殊颜色**：极值点（北极漠河、东极抚远）用鲜明色 `#06b6d4`，起点用路线主色
+
+> 完整颜色表、线型规则、节点形状见本文档顶部的「设计系统：线型 × 颜色」章节。
 
 ---
 
-## 阶段四：部署
+### 阶段三检查点：本地预览
+
+阶段三全部注入完成后，**必须**用 `preview_url` 打开本地 HTML 文件，让用户确认以下项目：
+
+- 路线颜色和线型（实线/虚线）是否正确
+- 底部图例栏是否居中、底部留白 2px、左侧留白 4px
+- 菱形图标尺寸和位置是否正常
+- 缩放按钮和滚轮细腻度是否生效
+- 口岸筛选器是否正常工作
+- 路况三角是否出现在正确路段
+
+用户确认无误后，进入阶段四。
+
+---
+
+## 阶段四：部署（需用户确认）
+
+### 部署前确认
+
+部署前必须向用户展示：
+1. 将要部署的地图标题和关键信息
+2. 确认 UI 组件全部就位（图例/缩放/筛选/菱形/路况三角）
+3. 确认颜色和路线样式无误
+
+用户确认后方可执行部署。
+
+### 部署操作
 
 ```bash
-cp index.html deploy/index.html
-# then: workbuddy_cloudstudio_deploy → deploy/
-```
+# 确保目录下有 index.html
+cp 项目名.html index.html
 
-本地交付：
-```bash
+# CloudStudio 部署
+# workbuddy_cloudstudio_deploy → 项目目录/
+
+# 本地交付（选做）
 cp index.html ~/Desktop/路线地图.html
-# optional: Compress-Archive for .zip
 ```
+
+### 部署后验证
+
+部署完成后打开预览链接，检查：
+- 菱形图标尺寸和位置正常
+- 缩放/滚轮细腻度正常
+- 图例居中、不贴边
+- 飞航段不抢驾驶路线视觉
 
 ---
 
@@ -305,6 +511,8 @@ cp index.html ~/Desktop/路线地图.html
 | 图例竖排 | JS 里设了 `display:inline-block` | 只用 CSS `flex` 控制横向排列 |
 | 图例贴边无呼吸感 | margin 0 | `margin: 0 auto 2px auto` + `border-radius: 10px` |
 | build后UI全部丢失 | `build_map.py` 覆盖 HTML | 记录"必须重新应用的修改"清单 |
+| 菱形图标无呼吸感 | 用了 CSS rotate 或缺少 `diamond-icon` 类 | 用 SVG 纯菱形 + `className:"diamond-icon"` |
+| 菱形太大/太小 | 尺寸未统一 | 默认 15px（`width="15" height="15"` + `iconSize:[15,15]`） |
 | 路线是直线不是沿路 | 没用 OSRM 拉坐标 | 用 OSRM API 逐段拉取道路曲线 |
 | 东线西线不能同时选 | toggle 含互斥逻辑 | 删除互斥，改用独立的 add/remove 逻辑 |
 | 缩放动画不连贯 | `zoomSnap` 非整数导致 Leaflet 动画 bug | 保持 0.2 即可，这是 OSM 瓦片缩放级别的限制 |
@@ -317,8 +525,8 @@ cp index.html ~/Desktop/路线地图.html
 |------|---------|---------|----------|
 | ① 路线规划 | **高** | 方案选择、口岸决策 | 天气政策搜索、矩阵生成、YAML输出 |
 | ② 地图构建 | 零 | 无 | OSRM拉取、坐标生成、HTML构建 |
-| ③ UI 定制 | **低** | 颜色/宽度/顺序微调 | 默认值+通用组件注入 |
-| ④ 部署 | 零 | 无 | 一键CloudStudio + 本地打包 |
+| ③ UI 定制 | 零 | 无（全部自动化） | 按规则库逐项注入 UI 组件 |
+| ④ 部署 | **低** | 确认后执行 | CloudStudio + 本地打包 + 部署后验证 |
 
 ## 安全检查（部署前）
 
