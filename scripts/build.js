@@ -122,15 +122,16 @@ function generateHTML(cfg, osmData) {
 
   // ====== Stops JS ======
   const startStops = stops.filter(s => s.node_type === 'start');
-  const endStops = stops.filter(s => s.node_type === 'end');
+  const endStops   = stops.filter(s => s.node_type === 'end');
+  const scenicStops = stops.filter(s => s.node_type === 'scenic');
   const diamondStops = stops.filter(s => s.label_type === 'diamond');
-  const labelStops = stops.filter(s => s.label && s.node_type !== 'start' && s.node_type !== 'end' && s.label_type !== 'diamond');
-  const circleStops = stops.filter(s => !s.label && s.label_type !== 'diamond' && s.node_type !== 'start' && s.node_type !== 'end' && s.node_type !== 'flight');
+  const labelStops = stops.filter(s => s.label && !['start','end','scenic'].includes(s.node_type) && s.label_type !== 'diamond');
+  const circleStops = stops.filter(s => !s.label && !['start','end','scenic'].includes(s.node_type) && s.label_type !== 'diamond' && s.node_type !== 'flight');
   const flightStops = stops.filter(s => s.node_type === 'flight');
 
   const stopJS = [];
 
-  // 起点
+  // 起点 — 大号圆点(radius:8) + 文字标签
   startStops.forEach(s => {
     const color = colorsObj[s.route] || cfg.routes[0].color;
     stopJS.push(`// 起点: ${s.name}
@@ -138,12 +139,22 @@ otherMarkers.push(L.circleMarker([${s.lat},${s.lng}], {radius:8,fillColor:"${col
 otherMarkers.push(addLabel(${s.lat},${s.lng}, '<b style="font-size:11px;color:${color}">${s.label || '起点 · '+s.name}</b>'));`);
   });
 
-  // 终点
+  // 终点 — 中号圆点(radius:7) + tooltip(label) + 文字标签
   endStops.forEach(s => {
     const color = s.label_color || '#059669';
-    stopJS.push(`// ${s.label || s.name}
-otherMarkers.push(L.circleMarker([${s.lat},${s.lng}], {radius:7,fillColor:"${color}",color:"#fff",weight:2,fillOpacity:0.9}).bindTooltip("${s.name}", {direction:"top",className:"mini-tooltip"}));
-otherMarkers.push(addLabel(${s.lat},${s.lng}, '<span style="font-size:10px;color:${color};font-weight:600">${s.label || s.name}</span>',150));`);
+    const labelText = s.label || s.name;
+    stopJS.push(`// ${labelText}
+otherMarkers.push(L.circleMarker([${s.lat},${s.lng}], {radius:7,fillColor:"${color}",color:"#fff",weight:2,fillOpacity:0.9}).bindTooltip("${labelText}", {direction:"top",className:"mini-tooltip"}));
+otherMarkers.push(addLabel(${s.lat},${s.lng}, '<span style="font-size:10px;color:${color};font-weight:600">${labelText}</span>',150));`);
+  });
+
+  // 景观/打卡点 — 同终点规格（radius:7），与手工版一致
+  scenicStops.forEach(s => {
+    const color = s.label_color || '#06b6d4';
+    const labelText = s.label || s.name;
+    stopJS.push(`// ${labelText}
+otherMarkers.push(L.circleMarker([${s.lat},${s.lng}], {radius:7,fillColor:"${color}",color:"#fff",weight:2,fillOpacity:0.9}).bindTooltip("${labelText}", {direction:"top",className:"mini-tooltip"}));
+otherMarkers.push(addLabel(${s.lat},${s.lng}, '<span style="font-size:10px;color:${color};font-weight:600">${labelText}</span>',150));`);
   });
 
   // 菱形口岸
@@ -153,7 +164,7 @@ otherMarkers.push(addLabel(${s.lat},${s.lng}, '<span style="font-size:10px;color
 portMarkers.push(L.marker([${s.lat},${s.lng}], {icon:diamondIcon("${color}")}).bindTooltip("${s.name}", {direction:"bottom",className:"mini-tooltip"}));`);
   });
 
-  // 文字标注城市
+  // 文字标注城市（枢纽/休息点等）
   labelStops.forEach(s => {
     const color = s.label_color || '#9ca3af';
     stopJS.push(`// ${s.name}
@@ -168,9 +179,10 @@ otherMarkers.push(addLabel(${s.lat},${s.lng}, '<span style="font-size:10px;color
 
   // 飞航端
   flightStops.forEach(s => {
-    stopJS.push(`// ${s.label || s.name}
-otherMarkers.push(L.circleMarker([${s.lat},${s.lng}], {radius:6,fillColor:"#0891b2",color:"#fff",weight:2,fillOpacity:0.85}).bindTooltip("${s.name}", {direction:"top",className:"mini-tooltip"}));
-otherMarkers.push(addLabel(${s.lat},${s.lng}, '<span style="font-size:10px;color:#0891b2;font-weight:600">${s.label || s.name}</span>',160));`);
+    const labelText = s.label || s.name;
+    stopJS.push(`// ${labelText}
+otherMarkers.push(L.circleMarker([${s.lat},${s.lng}], {radius:6,fillColor:"#0891b2",color:"#fff",weight:2,fillOpacity:0.85}).bindTooltip("${labelText}", {direction:"top",className:"mini-tooltip"}));
+otherMarkers.push(addLabel(${s.lat},${s.lng}, '<span style="font-size:10px;color:#0891b2;font-weight:600">${labelText}</span>',160));`);
   });
 
   // ====== 路况（路段关联模式） ======
@@ -345,7 +357,7 @@ function addLabel(lat,lng,html,w) {
 var portMarkers=[], otherMarkers=[];
 ${stopJS.join('\n')}
 
-layers.ports = L.layerGroup(portMarkers);
+layers.ports = L.layerGroup(portMarkers).addTo(map);
 layers.nonPorts = L.layerGroup(otherMarkers).addTo(map);
 
 // ── Legend ──
