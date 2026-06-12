@@ -7,11 +7,12 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
 
 ## Overview
 
-四阶段流水线：用户口述出行意图 → 结构化路线分析 → `build.js` 一键生成 HTML → 部署到网页。
+四阶段流水线：用户口述出行意图 → 结构化路线分析 → 手工构建 HTML 地图 → 部署到网页。
 
 **核心原则**: 数据驱动，组件通用，判断点明确。每次只让用户做最低限度的决策。
 
-**v2.1 自动化**: 阶段二和阶段三已通过 `scripts/build.js` 实现全自动——读取 YAML → 调用 OSRM 拉取实际道路坐标 → 生成包含全部 8 项 UI 组件的完整 HTML。`scripts/validate.js` 提供 34 项自动自查。模型不再需要记忆设计细节或手工操作代码，只需准备 YAML 配置文件。
+**当前方式**: 阶段一产出 YAML 配置，阶段二手工用 OSRM API 拉取道路坐标，阶段三按本 Skill 中的 8 项 UI 规范逐项手工注入到 Leaflet HTML 模板。成品案例见 `examples/` 目录，供模型参考复用。
+
 
 ---
 
@@ -28,14 +29,14 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
                │
                ▼
 ┌─────────────────────────────┐
-│ 阶段二：地图构建              │  ← 全自动：build.js
-│  YAML → OSRM → HTML          │     node scripts/build.js config.yaml
+│ 阶段二：地图构建              │  ← 手工：OSRM API + 拼接坐标
+│  YAML → OSRM → HTML 骨架      │     waypoint 坐标拉取道路曲线
 └──────────────┬──────────────┘
                │
                ▼
 ┌─────────────────────────────┐
-│ 阶段三：UI 定制               │  ← 已内置于 build.js
-│  8 项 UI 组件自动注入         │     同时生成完整 HTML
+│ 阶段三：UI 定制               │  ← 手工：按 8 项清单逐项注入
+│  8 项 UI 组件逐项注入         │     参照本文规范 + 已有案例
 └──────────────┬──────────────┘
                │
                ▼
@@ -45,8 +46,8 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
                │
                ▼
 ┌─────────────────────────────┐
-│ 阶段四：自查 + 部署           │
-│  validate → CloudStudio       │
+│ 阶段四：部署                  │
+│  CloudStudio 上线              │
 └─────────────────────────────┘
 ```
 
@@ -206,34 +207,62 @@ filters:                       # 阶段三自动生成
 
 ---
 
-## 阶段二 + 阶段三：地图构建 + UI 注入（全自动）
+## 阶段二：地图构建（手工）
 
-阶段二和阶段三已合并为 `scripts/build.js` 的单次运行——读取阶段一产出的 YAML → 自动完成 OSRM 坐标拉取 + HTML 生成 + 8 项 UI 注入。
+### 技术栈
+- **Leaflet.js** + OpenStreetMap 瓦片
+- **OSRM** API 拉取实际道路曲线坐标（非直线）
+- 参照已有案例 HTML 模板拼接
 
-```bash
-node scripts/build.js scripts/<项目>.yaml
-# 输出: examples/<项目>.html
-```
-
-### 自动化流程
+### 操作流程
 
 ```
 阶段一 YAML 配置
     ↓
-解析 routes[].waypoints → OSRM API 逐段拉取道路曲线
+取 routes[].waypoints 途经点坐标
     ↓
-生成完整 HTML（Leaflet polyline + 坐标硬编码 + 全部 UI 组件）
+逐对 waypoint 调 OSRM API → 获取道路曲线坐标数组
     ↓
-验证: node scripts/validate.js examples/<项目>.html
+将坐标数组硬编码入 Leaflet polyline
     ↓
-输出完整可部署 HTML
+输出 HTML 骨架（只有路线 + 底图，尚无 UI 组件）
 ```
+
+### OSRM 调用方法
+
+```bash
+# 两个 waypoint 之间拉取道路曲线
+curl "https://router.project-osrm.org/route/v1/driving/LNG1,LAT1;LNG2,LAT2?geometries=geojson&overview=full"
+# 返回: routes[0].geometry.coordinates → [[lng,lat], ...]
+```
+
+### Leaflet polyline 模板
+
+```javascript
+var route_p = [[lat1,lng1], [lat2,lng2], ...];  // OSRM 返回的坐标数组
+var route = L.polyline(route_p, {
+  color: "#7c3aed",         // 从 YAML routes[].color
+  weight: 3.5,              // solid=3.5 / dashed=2.5
+  dashArray: null,          // solid=null / dashed="2, 5"
+  lineJoin: "round"
+}).addTo(map);
+```
+
+### 参考案例
+
+优先参考现有案例的 HTML 结构：
+- `examples/index.html` — 贝加尔湖自驾（第 100 行起为 JS 主逻辑）
+- `examples/G331/G331东北边境自驾环线.html` — G331 环线（第 112 行起）
+
+阶段二产出的是**只有路线 + 底图的无 UI 骨架**，所有 UI 组件在阶段三注入。
 
 ---
 
-## 阶段三：UI 定制（规则注入）
+## 阶段三：UI 定制（手工注入）
 
-阶段三对阶段二产出的 HTML 骨架注入以下 UI 组件。每一项是**强制规则**，不得跳过。
+阶段三对阶段二产出的 HTML 骨架手工注入以下 8 项 UI 组件。每一项是**强制规则**。注入顺序严格遵循清单编号，不可跳项。
+
+**关键提醒：完成一项后立即保存并通过 preview_url 确认效果，不要全部注入完再检查。**
 
 ### 注入清单（按顺序）
 
@@ -313,23 +342,28 @@ JS（底部铺满 + 左侧留白）：
 
 #### 3. 关键节点筛选器
 
-标记分两组：`layers.ports`（筛选目标）和 `layers.nonPorts`（其余标记）。
+标记分两组：`layers.ports`（筛选目标，如口岸）和 `layers.nonPorts`（其余标记）。
 
 勾选筛选时同时隐藏路线层：
+
 ```javascript
-if(this.checked) {
-  map.removeLayer(layers.ob);     // 去程路线
-  map.removeLayer(layers.ea);     // 东线回程
-  map.removeLayer(layers.we);     // 西线回程
-  map.removeLayer(layers.nonPorts);
-  layers.ports.addTo(map);
-} else {
-  layers.ob.addTo(map);
-  layers.ea.addTo(map);
-  layers.we.addTo(map);
-  layers.nonPorts.addTo(map);
-}
-```
+var allRouteLayers = [layers.grass, layers.center, layers.ret]; // 所有路线层
+
+cb.addEventListener('change', function() {
+  if (this.checked) {
+    // 隐藏路线 + 非口岸标记，只显示口岸
+    allRouteLayers.forEach(l => map.removeLayer(l));
+    map.removeLayer(layers.nonPorts);
+    if (layers.segGroup) map.removeLayer(layers.segGroup);
+    layers.ports.addTo(map);
+  } else {
+    // 恢复全部
+    allRouteLayers.forEach(l => l.addTo(map));
+    layers.nonPorts.addTo(map);
+    if (layers.segGroup) layers.segGroup.addTo(map);
+    map.removeLayer(layers.ports);
+  }
+});
 
 #### 4. 飞航段/轮渡
 
@@ -461,19 +495,8 @@ function addLabel(lat, lng, html, w) {
 用户确认无误后，进入阶段四。
 
 ---
-## 自动自查
 
-部署前运行 `validate.js` 对输出 HTML 执行 34 项自动检查（覆盖 8 项 UI 组件 + 通用规则 + 隐私安全）：
-
-```bash
-node scripts/validate.js examples/<项目>.html
-```
-
-全部通过后进入部署。
-
----
-
-## 阶段四：部署（确认后执行）
+## 阶段四：部署
 
 用户已在阶段三检查点确认视觉效果，直接执行部署：
 
@@ -497,11 +520,15 @@ cp index.html ~/Desktop/路线地图.html  # 选做
 | 图例不居中 | `bottomcenter` 不存在 | `bottomleft` + CSS `margin:0 auto` + JS 扩展宽度 + 左侧 `paddingLeft:4px` |
 | 图例竖排 | JS 里设了 `display:inline-block` | 只用 CSS `flex` 控制横向排列 |
 | 图例贴边无呼吸感 | margin 0 | `margin: 0 auto 2px auto` + `border-radius: 10px` |
-| UI 组件遗漏 | build 后未验证 | `node scripts/validate.js` 跑一遍 34 项检查 |
+| UI 组件遗漏 | 注入时跳过了某项 | 按 1→8 顺序逐项注入，每完成一项用 preview_url 确认视觉效果 |
 | 菱形图标无呼吸感 | 用了 CSS rotate 或缺少 `diamond-icon` 类 | 用 SVG 纯菱形 + `className:"diamond-icon"` |
 | 菱形太大/太小 | 尺寸未统一 | 默认 15px（`width="15" height="15"` + `iconSize:[15,15]`） |
-| 路线是直线不是沿路 | 没用 OSRM 拉坐标 | build.js 自动处理，YAML 的 waypoints 设置正确即可 |
+| 路线是直线不是沿路 | 没用 OSRM 拉坐标 | 阶段二用 OSRM API 逐段拉取道路曲线坐标 |
 | 缩放动画不连贯 | `zoomSnap` 非整数导致 Leaflet 动画 bug | 保持 0.2 即可 |
+| 标记不显示 | layerGroup 创建后没 `.addTo(map)` | 所有 layerGroup 创建时必须链式调用 `.addTo(map)` |
+| 口岸/城市/起点全丢 | `layers.ports` 和 `layers.nonPorts` 都没 addTo | 确保 `ports` 和 `nonPorts` 两个 layerGroup 都 `.addTo(map)` |
+| scenic 节点变小灰点 | scenic 类型被当作普通途经城市处理 | scenic 节点用 `circleMarker(radius:7)` + addLabel，与 end 节点同规格 |
+| tooltip 显示短名 | tooltip 用了 `s.name` 而非 `s.label` | 有 label 字段的节点 tooltip 一律用 `s.label` |
 
 ---
 
@@ -510,9 +537,9 @@ cp index.html ~/Desktop/路线地图.html  # 选做
 | 阶段 | 判断密度 | 用户参与 | AI 做什么 |
 |------|---------|---------|----------|
 | ① 路线规划 | **高** | 方案选择、口岸决策 | 天气政策搜索、矩阵生成、YAML输出 |
-| ② 地图构建 | 零 | 无 | OSRM拉取、坐标生成、HTML构建 |
-| ③ UI 定制 | 零 | 无（全部自动化） | 按规则库逐项注入 UI 组件 |
-| ④ 部署 | **低** | 确认后执行 | CloudStudio + 本地打包 + 部署后验证 |
+| ② 地图构建 | **低** | 无 | OSRM 拉取坐标、Leaflet polyline 拼接、HTML 骨架生成 |
+| ③ UI 定制 | **低** | 预览确认 | 按 8 项清单逐项手工注入 UI 组件，第一项完成即 preview 确认 |
+| ④ 部署 | **低** | 确认后执行 | CloudStudio 上线 |
 
 ## 安全检查（部署前）
 
