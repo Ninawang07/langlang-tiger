@@ -346,7 +346,7 @@ var portMarkers=[], otherMarkers=[];
 ${stopJS.join('\n')}
 
 layers.ports = L.layerGroup(portMarkers);
-layers.nonPorts = L.layerGroup(otherMarkers);
+layers.nonPorts = L.layerGroup(otherMarkers).addTo(map);
 
 // ── Legend ──
 (function(){
