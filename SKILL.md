@@ -7,11 +7,11 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
 
 ## Overview
 
-四阶段流水线：用户口述出行意图 → 结构化路线分析 → 脚本自动化构建地图 → 部署到网页。
+四阶段流水线：用户口述出行意图 → 结构化路线分析 → `build.js` 一键生成 HTML → 部署到网页。
 
 **核心原则**: 数据驱动，组件通用，判断点明确。每次只让用户做最低限度的决策。
 
-**与早期版本的区别**：此版本从"对话驱动"重构为"结构化流水线"——每个阶段有明确的 YAML 输入约束、脚本自动化入口、UI 规则库引用。模型不再需要记忆设计细节，而是按规范执行。
+**v2.1 自动化**: 阶段二和阶段三已通过 `scripts/build.js` 实现全自动——读取 YAML → 调用 OSRM 拉取实际道路坐标 → 生成包含全部 8 项 UI 组件的完整 HTML。`scripts/validate.js` 提供 34 项自动自查。模型不再需要记忆设计细节或手工操作代码，只需准备 YAML 配置文件。
 
 ---
 
@@ -28,20 +28,25 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
                │
                ▼
 ┌─────────────────────────────┐
-│ 阶段二：地图构建              │  ← 全自动：脚本 + OSRM
-│  YAML→坐标→HTML骨架           │
+│ 阶段二：地图构建              │  ← 全自动：build.js
+│  YAML → OSRM → HTML          │     node scripts/build.js config.yaml
 └──────────────┬──────────────┘
                │
                ▼
 ┌─────────────────────────────┐
-│ 阶段三：UI 定制               │  ← 全自动：规则库注入
-│  按清单逐项注入 UI 组件       │
+│ 阶段三：UI 定制               │  ← 已内置于 build.js
+│  8 项 UI 组件自动注入         │     同时生成完整 HTML
 └──────────────┬──────────────┘
                │
                ▼
+         preview_url 本地预览
+               │
+         用户确认
+               │
+               ▼
 ┌─────────────────────────────┐
-│ 阶段四：部署                  │  ← 确认后执行
-│  CloudStudio + 部署后验证     │
+│ 阶段四：自查 + 部署           │
+│  validate → CloudStudio       │
 └─────────────────────────────┘
 ```
 
@@ -201,36 +206,28 @@ filters:                       # 阶段三自动生成
 
 ---
 
-## 阶段二：地图构建（全自动）
+## 阶段二 + 阶段三：地图构建 + UI 注入（全自动）
 
-### 技术栈
-- **Leaflet.js** + OpenStreetMap 瓦片
-- **OSRM** 拉取实际道路曲线坐标
-- 构建脚本生成基础 HTML
+阶段二和阶段三已合并为 `scripts/build.js` 的单次运行——读取阶段一产出的 YAML → 自动完成 OSRM 坐标拉取 + HTML 生成 + 8 项 UI 注入。
+
+```bash
+node scripts/build.js scripts/<项目>.yaml
+# 输出: examples/<项目>.html
+```
 
 ### 自动化流程
 
 ```
 阶段一 YAML 配置
     ↓
-解析 routes[].segments 途经点坐标
+解析 routes[].waypoints → OSRM API 逐段拉取道路曲线
     ↓
-逐段调 OSRM API → 道路曲线坐标数组
+生成完整 HTML（Leaflet polyline + 坐标硬编码 + 全部 UI 组件）
     ↓
-脚本生成 HTML 骨架（Leaflet polyline + 坐标硬编码）
+验证: node scripts/validate.js examples/<项目>.html
     ↓
-输出到 examples/<项目名>/index.html
+输出完整可部署 HTML
 ```
-
-### 构建脚本策略
-
-优先用已有的 build 脚本或 JS 模板生成 HTML 骨架。如需重新 build，必须先备份阶段三的手动 UI 代码。
-
-### ⚠️ 致命坑
-
-**每次重新 build 都会覆盖 HTML 文件，阶段三的 UI 定制全部丢失。** 因此阶段三的修改必须：
-1. 完成后导出为独立的 UI 注入脚本
-2. 或者在 build 后按清单逐项重新应用
 
 ---
 
@@ -466,38 +463,30 @@ function addLabel(lat, lng, html, w) {
 用户确认无误后，进入阶段四。
 
 ---
+## 自动自查
 
-## 阶段四：部署（需用户确认）
+部署前运行 `validate.js` 对输出 HTML 执行 34 项自动检查（覆盖 8 项 UI 组件 + 通用规则 + 隐私安全）：
 
-### 部署前确认
+```bash
+node scripts/validate.js examples/<项目>.html
+```
 
-部署前必须向用户展示：
-1. 将要部署的地图标题和关键信息
-2. 确认 UI 组件全部就位（图例/缩放/筛选/菱形/路况三角）
-3. 确认颜色和路线样式无误
+全部通过后进入部署。
 
-用户确认后方可执行部署。
+---
 
-### 部署操作
+## 阶段四：部署（确认后执行）
+
+用户已在阶段三检查点确认视觉效果，直接执行部署：
 
 ```bash
 # 确保目录下有 index.html
 cp 项目名.html index.html
-
 # CloudStudio 部署
-# workbuddy_cloudstudio_deploy → 项目目录/
-
-# 本地交付（选做）
-cp index.html ~/Desktop/路线地图.html
+cp index.html ~/Desktop/路线地图.html  # 选做
 ```
 
-### 部署后验证
-
-部署完成后打开预览链接，检查：
-- 菱形图标尺寸和位置正常
-- 缩放/滚轮细腻度正常
-- 图例居中、不贴边
-- 飞航段不抢驾驶路线视觉
+部署后 `preview_url` 确认页面正常加载即可。
 
 ---
 
@@ -510,12 +499,11 @@ cp index.html ~/Desktop/路线地图.html
 | 图例不居中 | `bottomcenter` 不存在 | `bottomleft` + CSS `margin:0 auto` + JS 扩展宽度 + 左侧 `paddingLeft:4px` |
 | 图例竖排 | JS 里设了 `display:inline-block` | 只用 CSS `flex` 控制横向排列 |
 | 图例贴边无呼吸感 | margin 0 | `margin: 0 auto 2px auto` + `border-radius: 10px` |
-| build后UI全部丢失 | `build_map.py` 覆盖 HTML | 记录"必须重新应用的修改"清单 |
+| UI 组件遗漏 | build 后未验证 | `node scripts/validate.js` 跑一遍 34 项检查 |
 | 菱形图标无呼吸感 | 用了 CSS rotate 或缺少 `diamond-icon` 类 | 用 SVG 纯菱形 + `className:"diamond-icon"` |
 | 菱形太大/太小 | 尺寸未统一 | 默认 15px（`width="15" height="15"` + `iconSize:[15,15]`） |
-| 路线是直线不是沿路 | 没用 OSRM 拉坐标 | 用 OSRM API 逐段拉取道路曲线 |
-| 东线西线不能同时选 | toggle 含互斥逻辑 | 删除互斥，改用独立的 add/remove 逻辑 |
-| 缩放动画不连贯 | `zoomSnap` 非整数导致 Leaflet 动画 bug | 保持 0.2 即可，这是 OSM 瓦片缩放级别的限制 |
+| 路线是直线不是沿路 | 没用 OSRM 拉坐标 | build.js 自动处理，YAML 的 waypoints 设置正确即可 |
+| 缩放动画不连贯 | `zoomSnap` 非整数导致 Leaflet 动画 bug | 保持 0.2 即可 |
 
 ---
 

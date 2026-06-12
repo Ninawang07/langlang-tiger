@@ -1,0 +1,173 @@
+scenario:
+  type: domestic
+  departure: "2026-07-15"
+  season: summer
+  vehicle: car
+
+title: "G331 东北边境自驾环线"
+center: [49, 110]
+zoom: 4
+
+routes:
+  - id: grass
+    name: "草原线（去程主线）"
+    style: dashed
+    color: "#7c3aed"
+    dashArray: "2, 5"
+    waypoints:
+      - [42.26, 118.89]   # 赤峰
+      - [43.93, 116.09]   # 锡林浩特
+      - [47.18, 119.94]   # 阿尔山
+      - [49.58, 117.45]   # 满洲里
+      - [52.97, 122.54]   # 漠河
+
+  - id: center
+    name: "中心线（去程备选）"
+    style: dashed
+    color: "#2563eb"
+    dashArray: "2, 5"
+    waypoints:
+      - [42.26, 118.89]   # 赤峰
+      - [43.62, 122.27]   # 通辽
+      - [45.14, 124.82]   # 松原
+      - [45.75, 126.63]   # 哈尔滨
+      - [47.35, 123.97]   # 齐齐哈尔
+      - [50.42, 124.07]   # 加格达奇
+      - [52.97, 122.54]   # 漠河
+
+  - id: ret
+    name: "G331 边境返程"
+    style: solid
+    color: "#DB536A"
+    waypoints:
+      - [52.97, 122.54]   # 漠河
+      - [50.25, 127.50]   # 黑河
+      - [48.36, 134.30]   # 抚远
+      - [44.41, 131.17]   # 绥芬河
+      - [42.87, 130.37]   # 珲春
+      - [40.00, 124.35]   # 丹东
+      - [39.90, 116.40]   # 北京
+
+flightSegments:
+  - from: [49.58, 117.45]
+    to: [52.27, 104.30]
+    label: "满洲里 ✈ 伊尔库茨克往返（7月末）"
+  - from: [45.75, 126.63]
+    to: [52.27, 104.30]
+    label: "哈尔滨 ✈ 伊尔库茨克往返（7月末）"
+  - from: [43.12, 131.90]
+    to: [53.02, 158.65]
+    label: "海参崴 ✈ 勘察加往返（9月初）"
+
+stops:
+  # 起点
+  - name: "赤峰"
+    lat: 42.26
+    lng: 118.89
+    node_type: start
+    label: "起点 · 赤峰"
+  # 口岸（菱形标记）
+  - name: "满洲里口岸"
+    lat: 49.58
+    lng: 117.45
+    node_type: border_out
+    label_type: diamond
+    route: grass
+  - name: "黑河口岸"
+    lat: 50.25
+    lng: 127.50
+    node_type: border_out
+    label_type: diamond
+    route: ret
+  - name: "绥芬河口岸"
+    lat: 44.41
+    lng: 131.17
+    node_type: border_out
+    label_type: diamond
+    route: ret
+  - name: "珲春口岸"
+    lat: 42.87
+    lng: 130.37
+    node_type: border_out
+    label_type: diamond
+    route: ret
+  # 关键节点
+  - name: "漠河"
+    lat: 52.97
+    lng: 122.54
+    node_type: end
+    label: "中国北极 · 漠河"
+    label_color: "#06b6d4"
+  - name: "抚远"
+    lat: 48.36
+    lng: 134.30
+    node_type: scenic
+    label: "中国东极 · 抚远"
+    label_color: "#06b6d4"
+  - name: "哈尔滨"
+    lat: 45.75
+    lng: 126.63
+    node_type: rest
+    label: "哈尔滨 · 飞伊尔库茨克"
+    label_color: "#2563eb"
+  # 途经城市（小圆点）
+  - name: "锡林浩特"
+    lat: 43.93
+    lng: 116.09
+    node_type: rest
+  - name: "阿尔山"
+    lat: 47.18
+    lng: 119.94
+    node_type: rest
+  - name: "通辽"
+    lat: 43.62
+    lng: 122.27
+    node_type: rest
+  - name: "松原"
+    lat: 45.14
+    lng: 124.82
+    node_type: rest
+  - name: "齐齐哈尔"
+    lat: 47.35
+    lng: 123.97
+    node_type: rest
+  - name: "加格达奇"
+    lat: 50.42
+    lng: 124.07
+    node_type: rest
+  - name: "丹东"
+    lat: 40.00
+    lng: 124.35
+    node_type: rest
+  # 飞航端点
+  - name: "伊尔库茨克（贝加尔湖）"
+    lat: 52.27
+    lng: 104.30
+    node_type: flight
+    label: "伊尔库茨克 · 贝加尔湖"
+    label_color: "#0891b2"
+  - name: "勘察加半岛"
+    lat: 53.02
+    lng: 158.65
+    node_type: flight
+
+roadConditions:
+  - lat: 50.20
+    lng: 125.00
+    title: "冻土路段"
+    sub: "大兴安岭-漠河段，6月解冻注意"
+    route: grass
+  - lat: 51.00
+    lng: 123.50
+    title: "碎石路面"
+    sub: "漠河-黑河段，大车碾压严重"
+    route: ret
+  - lat: 43.50
+    lng: 130.80
+    title: "弯道密集"
+    sub: "绥芬河-珲春段，山路限速40"
+    route: ret
+
+filters:
+  - group: border
+    label: "边境口岸"

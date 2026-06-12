@@ -1,0 +1,26 @@
+{
+  "name": "langlang-tiger",
+  "version": "1.0.0",
+  "description": "一个将旅行路线规划（自驾/骑行/徒步/摩托）转化为交互式 Leaflet 地图的 Skill。",
+  "main": "index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ninawang07/langlang-tiger.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ninawang07/langlang-tiger/issues"
+  },
+  "homepage": "https://github.com/Ninawang07/langlang-tiger#readme",
+  "dependencies": {
+    "js-yaml": "^4.2.0"
+  }
+}
