@@ -343,23 +343,21 @@ layers.flight = L.polyline([[from_lat,from_lng], [mid_lat,mid_lng], [to_lat,to_l
 
 #### 5. 路况标记
 
-使用**半透明黄色三角形**（无边框）标注需注意路段，形状区分于圆形地点标记：
+用**半透明黄色三角形**标注需注意路段。路况按**路段关联**配置——绑定到路线 waypoint 索引区间，三角自动放置在该段中点。
 
-```javascript
-segData.forEach(function(s){
-  var icon = L.divIcon({
-    className: "",
-    html: '<svg width="14" height="14"><polygon points="7,0 14,14 0,14" fill="'+s.color+'" fill-opacity="0.65"/></svg>',
-    iconSize: [14,14], iconAnchor: [7,10]
-  });
-  segMarkers.push(L.marker([s.lat,s.lng], {icon: icon}).bindTooltip(
-    '<b>'+s.title+'</b><br><span style="font-size:10px;color:#666">'+s.sub+'</span>',
-    {className:"mini-tooltip", direction:"top"}
-  ));
-});
+**YAML：**
+```yaml
+roadConditions:
+  - route: ret          # 关联的路线 id
+    segment: [0, 1]     # waypoint 索引区间
+    title: "碎石路面"
+    sub: "漠河→黑河段，大车碾压严重，需降速"
 ```
 
-**设计原则：** 路况标记用三角形 ▲，城市/地点标记用圆形 ●，形状区分 + 半透明黄色区别于实心圆点。只标注"需注意/难行"路段，路况良好的不标。
+**生成逻辑**（build.js 内置）：
+- 在 OSRM 坐标中定位 waypoint[segStart] 和 waypoint[segEnd]
+- 取该段所有坐标的中点 → 放置三角
+- 只标注"需注意/难行"路段，路况良好的不标
 
 #### 6. 城市/口岸标记（菱形图标）
 

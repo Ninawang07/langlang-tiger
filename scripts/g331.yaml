@@ -152,21 +152,18 @@ stops:
     node_type: flight
 
 roadConditions:
-  - lat: 50.20
-    lng: 125.00
+  - route: grass
+    segment: [2, 4]
     title: "冻土路段"
-    sub: "大兴安岭-漠河段，6月解冻注意"
-    route: grass
-  - lat: 51.00
-    lng: 123.50
+    sub: "阿尔山→满洲里→漠河，6月解冻注意，路面湿滑"
+  - route: ret
+    segment: [0, 1]
     title: "碎石路面"
-    sub: "漠河-黑河段，大车碾压严重"
-    route: ret
-  - lat: 43.50
-    lng: 130.80
+    sub: "漠河→黑河段，大车碾压严重，需降速"
+  - route: ret
+    segment: [3, 4]
     title: "弯道密集"
-    sub: "绥芬河-珲春段，山路限速40"
-    route: ret
+    sub: "绥芬河→珲春段，山路限速40"
 
 filters:
   - group: border

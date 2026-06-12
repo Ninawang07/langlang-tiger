@@ -160,10 +160,47 @@ otherMarkers.push(L.circleMarker([${s.lat},${s.lng}], {radius:6,fillColor:"#0891
 otherMarkers.push(addLabel(${s.lat},${s.lng}, '<span style="font-size:10px;color:#0891b2;font-weight:600">${s.label || s.name}</span>',160));`);
   });
 
-  // ====== 路况 ======
-  const roadJS = roadConds.length > 0 ? `
-// ── Road conditions ──
-var segData = ${JSON.stringify(roadConds, null, 2)};
+  // ====== 路况（路段关联模式） ======
+  // 为每个路况计算所关联路段的中点坐标
+  function findMidpoint(routeId, segStart, segEnd) {
+    const data = osmData[routeId];
+    if (!data || data.length === 0) return null;
+    const route = routes.find(r => r.id === routeId);
+    if (!route) return null;
+    const wps = route.waypoints || [];
+    if (segStart < 0 || segEnd > wps.length - 1) return null;
+
+    // 在 OSRM 坐标中找到最接近 waypoint[segStart] 和 waypoint[segEnd] 的位置
+    const startWP = wps[segStart], endWP = wps[segEnd];
+    let startIdx = 0, endIdx = data.length - 1;
+    let minStart = Infinity, minEnd = Infinity;
+    for (let i = 0; i < data.length; i++) {
+      const d = data[i];
+      const ds = Math.pow(d[0]-startWP[0],2) + Math.pow(d[1]-startWP[1],2);
+      if (ds < minStart) { minStart = ds; startIdx = i; }
+      const de = Math.pow(d[0]-endWP[0],2) + Math.pow(d[1]-endWP[1],2);
+      if (de < minEnd) { minEnd = de; endIdx = i; }
+    }
+    // 取中点
+    const midIdx = Math.floor((startIdx + endIdx) / 2);
+    return data[midIdx];
+  }
+
+  const roadData = roadConds.map(rc => {
+    const mid = findMidpoint(rc.route, rc.segment[0], rc.segment[1]);
+    if (!mid) {
+      const route = routes.find(r => r.id === rc.route);
+      const wps = route?.waypoints || [];
+      // fallback: 取两个 waypoint 的几何中点
+      const a = wps[rc.segment[0]], b = wps[rc.segment[1]];
+      return { lat: (a[0]+b[0])/2, lng: (a[1]+b[1])/2, title: rc.title, sub: rc.sub };
+    }
+    return { lat: mid[0], lng: mid[1], title: rc.title, sub: rc.sub };
+  });
+
+  const roadJS = roadData.length > 0 ? `
+// ── Road conditions (路段中点自动计算) ──
+var segData = ${JSON.stringify(roadData, null, 2)};
 var segMarkers = [];
 segData.forEach(function(s){
   var icon = L.divIcon({className:"",html:'<svg width="14" height="14"><polygon points="7,0 14,14 0,14" fill="#eab308" fill-opacity="0.65"/></svg>',iconSize:[14,14],iconAnchor:[7,10]});
