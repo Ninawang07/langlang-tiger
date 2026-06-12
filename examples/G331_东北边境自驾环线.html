@@ -45393,8 +45393,11 @@ var portMarkers=[], otherMarkers=[];
 otherMarkers.push(L.circleMarker([42.26,118.89], {radius:8,fillColor:"#7c3aed",color:"#fff",weight:2.5,fillOpacity:1}).bindTooltip("起点 · 赤峰", {direction:"top",className:"mini-tooltip"}));
 otherMarkers.push(addLabel(42.26,118.89, '<b style="font-size:11px;color:#7c3aed">起点 · 赤峰</b>'));
 // 中国北极 · 漠河
-otherMarkers.push(L.circleMarker([52.97,122.54], {radius:7,fillColor:"#06b6d4",color:"#fff",weight:2,fillOpacity:0.9}).bindTooltip("漠河", {direction:"top",className:"mini-tooltip"}));
+otherMarkers.push(L.circleMarker([52.97,122.54], {radius:7,fillColor:"#06b6d4",color:"#fff",weight:2,fillOpacity:0.9}).bindTooltip("中国北极 · 漠河", {direction:"top",className:"mini-tooltip"}));
 otherMarkers.push(addLabel(52.97,122.54, '<span style="font-size:10px;color:#06b6d4;font-weight:600">中国北极 · 漠河</span>',150));
+// 中国东极 · 抚远
+otherMarkers.push(L.circleMarker([48.36,134.3], {radius:7,fillColor:"#06b6d4",color:"#fff",weight:2,fillOpacity:0.9}).bindTooltip("中国东极 · 抚远", {direction:"top",className:"mini-tooltip"}));
+otherMarkers.push(addLabel(48.36,134.3, '<span style="font-size:10px;color:#06b6d4;font-weight:600">中国东极 · 抚远</span>',150));
 // 口岸: 满洲里口岸
 portMarkers.push(L.marker([49.58,117.45], {icon:diamondIcon("#7c3aed")}).bindTooltip("满洲里口岸", {direction:"bottom",className:"mini-tooltip"}));
 // 口岸: 黑河口岸
@@ -45403,9 +45406,6 @@ portMarkers.push(L.marker([50.25,127.5], {icon:diamondIcon("#DB536A")}).bindTool
 portMarkers.push(L.marker([44.41,131.17], {icon:diamondIcon("#DB536A")}).bindTooltip("绥芬河口岸", {direction:"bottom",className:"mini-tooltip"}));
 // 口岸: 珲春口岸
 portMarkers.push(L.marker([42.87,130.37], {icon:diamondIcon("#DB536A")}).bindTooltip("珲春口岸", {direction:"bottom",className:"mini-tooltip"}));
-// 抚远
-otherMarkers.push(addCircle(48.36,134.3, "抚远", "#06b6d4"));
-otherMarkers.push(addLabel(48.36,134.3, '<span style="font-size:10px;color:#06b6d4;font-weight:600">中国东极 · 抚远</span>',170));
 // 哈尔滨
 otherMarkers.push(addCircle(45.75,126.63, "哈尔滨", "#2563eb"));
 otherMarkers.push(addLabel(45.75,126.63, '<span style="font-size:10px;color:#2563eb;font-weight:600">哈尔滨 · 飞伊尔库茨克</span>',170));
@@ -45420,14 +45420,14 @@ otherMarkers.push(addCircle(47.35,123.97, "齐齐哈尔", "#9ca3af"));
 otherMarkers.push(addCircle(50.42,124.07, "加格达奇", "#9ca3af"));
 otherMarkers.push(addCircle(40,124.35, "丹东", "#9ca3af"));
 // 伊尔库茨克 · 贝加尔湖
-otherMarkers.push(L.circleMarker([52.27,104.3], {radius:6,fillColor:"#0891b2",color:"#fff",weight:2,fillOpacity:0.85}).bindTooltip("伊尔库茨克（贝加尔湖）", {direction:"top",className:"mini-tooltip"}));
+otherMarkers.push(L.circleMarker([52.27,104.3], {radius:6,fillColor:"#0891b2",color:"#fff",weight:2,fillOpacity:0.85}).bindTooltip("伊尔库茨克 · 贝加尔湖", {direction:"top",className:"mini-tooltip"}));
 otherMarkers.push(addLabel(52.27,104.3, '<span style="font-size:10px;color:#0891b2;font-weight:600">伊尔库茨克 · 贝加尔湖</span>',160));
 // 勘察加半岛
 otherMarkers.push(L.circleMarker([53.02,158.65], {radius:6,fillColor:"#0891b2",color:"#fff",weight:2,fillOpacity:0.85}).bindTooltip("勘察加半岛", {direction:"top",className:"mini-tooltip"}));
 otherMarkers.push(addLabel(53.02,158.65, '<span style="font-size:10px;color:#0891b2;font-weight:600">勘察加半岛</span>',160));
 
-layers.ports = L.layerGroup(portMarkers);
-layers.nonPorts = L.layerGroup(otherMarkers);
+layers.ports = L.layerGroup(portMarkers).addTo(map);
+layers.nonPorts = L.layerGroup(otherMarkers).addTo(map);
 
 // ── Legend ──
 (function(){
@@ -45441,7 +45441,8 @@ layers.nonPorts = L.layerGroup(otherMarkers);
           <span class="route-name" style="color:#7c3aed">草原线（去程主线）</span>
           <span class="route-dist" id="dist-grass">计算中...</span>
         </div>
-        <span class="route-detail">赤峰 → 满洲里口岸 → 漠河 → 锡林浩特 → 阿尔山,赤峰 → 满洲里口岸 → 漠河 → 锡林浩特 → 阿尔山,赤峰 → 满洲里口岸 → 漠河 → 锡林浩特 → 阿尔山,赤峰 → 满洲里口岸 → 漠河 → 锡林浩特 → 阿尔山,赤峰 → 满洲里口岸 → 漠河 → 锡林浩特 → 阿尔山</span>
+        <span class="route-detail">赤峰 → 锡林浩特 → 阿尔山 → 满洲里口岸 → 漠河</span>
+        <span class="route-extra">✈ 满洲里 ✈ 伊尔库茨克往返（7月末） · ▲ 路况注意</span>
       </div>
     </div>
 <div class="legend-section">
@@ -45451,7 +45452,8 @@ layers.nonPorts = L.layerGroup(otherMarkers);
           <span class="route-name" style="color:#2563eb">中心线（去程备选）</span>
           <span class="route-dist" id="dist-center">计算中...</span>
         </div>
-        <span class="route-detail">赤峰 → 漠河 → 哈尔滨 → 通辽 → 松原 → 齐齐哈尔 → 加格达奇,赤峰 → 漠河 → 哈尔滨 → 通辽 → 松原 → 齐齐哈尔 → 加格达奇,赤峰 → 漠河 → 哈尔滨 → 通辽 → 松原 → 齐齐哈尔 → 加格达奇,赤峰 → 漠河 → 哈尔滨 → 通辽 → 松原 → 齐齐哈尔 → 加格达奇,赤峰 → 漠河 → 哈尔滨 → 通辽 → 松原 → 齐齐哈尔 → 加格达奇,赤峰 → 漠河 → 哈尔滨 → 通辽 → 松原 → 齐齐哈尔 → 加格达奇,赤峰 → 漠河 → 哈尔滨 → 通辽 → 松原 → 齐齐哈尔 → 加格达奇</span>
+        <span class="route-detail">赤峰 → 通辽 → 松原 → 哈尔滨 → 齐齐哈尔 → 加格达奇 → 漠河</span>
+        <span class="route-extra">✈ 哈尔滨 ✈ 伊尔库茨克往返（7月末）</span>
       </div>
     </div>
 <div class="legend-section">
@@ -45461,7 +45463,8 @@ layers.nonPorts = L.layerGroup(otherMarkers);
           <span class="route-name" style="color:#DB536A">G331 边境返程</span>
           <span class="route-dist" id="dist-ret">计算中...</span>
         </div>
-        <span class="route-detail">黑河口岸 → 绥芬河口岸 → 珲春口岸 → 漠河 → 抚远 → 丹东,黑河口岸 → 绥芬河口岸 → 珲春口岸 → 漠河 → 抚远 → 丹东,黑河口岸 → 绥芬河口岸 → 珲春口岸 → 漠河 → 抚远 → 丹东,黑河口岸 → 绥芬河口岸 → 珲春口岸 → 漠河 → 抚远 → 丹东,黑河口岸 → 绥芬河口岸 → 珲春口岸 → 漠河 → 抚远 → 丹东,黑河口岸 → 绥芬河口岸 → 珲春口岸 → 漠河 → 抚远 → 丹东,黑河口岸 → 绥芬河口岸 → 珲春口岸 → 漠河 → 抚远 → 丹东</span>
+        <span class="route-detail">漠河 → 黑河口岸 → 抚远 → 绥芬河口岸 → 珲春口岸 → 丹东</span>
+        <span class="route-extra">▲ 路况注意</span>
       </div>
     </div>`;
     return d;
@@ -45473,28 +45476,25 @@ layers.nonPorts = L.layerGroup(otherMarkers);
 })();
 
 
-// ── Road conditions ──
+// ── Road conditions (路段中点自动计算) ──
 var segData = [
   {
-    "lat": 50.2,
-    "lng": 125,
+    "lat": 50.432101,
+    "lng": 120.917207,
     "title": "冻土路段",
-    "sub": "大兴安岭-漠河段，6月解冻注意",
-    "route": "grass"
+    "sub": "阿尔山→满洲里→漠河，6月解冻注意，路面湿滑"
   },
   {
-    "lat": 51,
-    "lng": 123.5,
+    "lat": 52.036616,
+    "lng": 126.174225,
     "title": "碎石路面",
-    "sub": "漠河-黑河段，大车碾压严重",
-    "route": "ret"
+    "sub": "漠河→黑河段，大车碾压严重，需降速"
   },
   {
-    "lat": 43.5,
-    "lng": 130.8,
+    "lat": 43.366928,
+    "lng": 131.147632,
     "title": "弯道密集",
-    "sub": "绥芬河-珲春段，山路限速40",
-    "route": "ret"
+    "sub": "绥芬河→珲春段，山路限速40"
   }
 ];
 var segMarkers = [];
