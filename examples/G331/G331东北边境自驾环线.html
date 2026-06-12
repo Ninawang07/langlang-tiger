@@ -147,8 +147,8 @@ function addLabel(lat,lng,html,w) {
 var portMarkers=[], otherMarkers=[];
 
 // Start: Chifeng
-otherMarkers.push(L.circleMarker([42.26,118.89],{radius:8,fillColor:GRASS,color:"#fff",weight:2.5,fillOpacity:1}).bindTooltip("赤峰 · 起点",{direction:"top",className:"mini-tooltip"}));
-otherMarkers.push(addLabel(42.26,118.89,'<b style="font-size:11px;color:#7c3aed">起点 · 赤峰</b>'));
+otherMarkers.push(L.circleMarker([42.26,118.89],{radius:8,fillColor:GRASS,color:"#fff",weight:2.5,fillOpacity:1}).bindTooltip("起点：赤峰（7.17音乐节）",{direction:"top",className:"mini-tooltip"}));
+otherMarkers.push(addLabel(42.26,118.89,'<b style="font-size:11px;color:#7c3aed">起点：赤峰</b><span style="font-size:11px;color:#7c3aed;font-weight:400">（7.17音乐节）</span>',220));
 
 // ── Grassland line markers ──
 otherMarkers.push(addCircle(43.93,116.09,"锡林浩特","#9ca3af"));
