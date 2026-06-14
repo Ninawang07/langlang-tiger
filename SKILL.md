@@ -237,6 +237,19 @@ curl "https://router.project-osrm.org/route/v1/driving/LNG1,LAT1;LNG2,LAT2?geome
 # 返回: routes[0].geometry.coordinates → [[lng,lat], ...]
 ```
 
+### ⚠️ 边境硬约束
+
+**OSRM 不认国界**，只走最快道路。当路线沿边境行驶时，如果两个 waypoint 间距过大，OSRM 可能穿越他国（如 G331 抚远→绥芬河段，OSRM 选了俄罗斯 A370 高速）。
+
+**强制规则：**
+
+1. **边境路段的 waypoint 间距不超过 150km**，且必须在每段强制加入口岸/边境城市作为途经点
+2. **拉取后必须校验坐标**——经度超过中国实际边界（东北边境约 131.5°E，西北约 86°E，西南约 98.5°E）的坐标点即判定为越界
+3. **发现越界立即修正**——在越界段的两个 waypoint 之间插入中国境内的中间城市，重新调 OSRM
+4. **口岸的硬约束意义**：口岸不仅是"检查站"标记，更是防止路由越界的地理锚点
+
+可在 YAML 的 waypoint 注释中标注 `# 边境锚点` 提醒自己。此规则适用于所有沿国境线行驶的路线（G331、G219、G228 等）。
+
 ### Leaflet polyline 模板
 
 ```javascript
@@ -550,6 +563,7 @@ cp index.html ~/Desktop/路线地图.html  # 选做
 | 口岸/城市/起点全丢 | `layers.ports` 和 `layers.nonPorts` 都没 addTo | 确保 `ports` 和 `nonPorts` 两个 layerGroup 都 `.addTo(map)` |
 | scenic 节点变小灰点 | scenic 类型被当作普通途经城市处理 | scenic 节点用 `circleMarker(radius:7)` + addLabel，与 end 节点同规格 |
 | tooltip 显示短名 | tooltip 用了 `s.name` 而非 `s.label` | 有 label 字段的节点 tooltip 一律用 `s.label` |
+| 边境路段穿越他国 | OSRM 不认国界，waypoint 间距过大越界 | waypoint 间距 ≤150km + 口岸锚点 + 拉取后校验经度（东北>131.5°E 即越界） |
 
 ---
 
