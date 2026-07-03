@@ -5,6 +5,17 @@ description: Use when the user wants to plan a travel route (self-driving, cycli
 
 # 浪浪虎 — 路线规划到交互地图
 
+## ⚠️ 执行前必读 · 铁律（每次不可跳过）
+
+1. **坐标顺序**：Leaflet 永远是 `[纬度, 经度]`，OSRM URL 永远是 `经度,纬度`
+2. **边境硬约束**：沿国境线的路线必须加 waypoint 锚点，间距 ≤150km，拉取后校验经度不越界
+3. **layerGroup 必须 addTo(map)**：所有 `L.layerGroup()` / `L.featureGroup()` 创建后链式调用 `.addTo(map)`
+4. **有 label 字段的节点**，tooltip 必须用 `s.label` 而非 `s.name`
+5. **标记可见性**：HTML 生成后必须 `preview_url` 肉眼确认——地图上至少能看到起点和所有目的地
+6. **scenic/end 节点**用 `circleMarker(radius:7)` + addLabel，不与普通途经城市混用 `addCircle(radius:6)`
+
+---
+
 ## Overview
 
 四阶段流水线：用户口述出行意图 → 结构化路线分析 → 手工构建 HTML 地图 → 部署到网页。
@@ -217,12 +228,27 @@ filters:                       # 阶段三自动生成
 
 ### 操作流程
 
+**开始前检查（逐条确认，不可跳过）：**
+
 ```
+□ 1. 是否有沿国境线的路线？→ 是：waypoint 间距 ≤150km？否：跳过
+□ 2. 是否有纬度 >48°N 或 <40°N 的节点？→ 检查是否在国境内
+□ 3. 确认所有坐标：lat 在前（纬度），lng 在后（经度）
+□ 4. 参照已有案例：找到最相似的 HTML 文件 → 复制结构，替换数据
+```
+
+**流程：**
+
+```
+检查通过
+    ↓
 阶段一 YAML 配置
     ↓
 取 routes[].waypoints 途经点坐标
     ↓
 逐对 waypoint 调 OSRM API → 获取道路曲线坐标数组
+    ↓
+【再次检查】随机抽 3 个坐标点，确认经度在国境线内（东北≤131.5°E 等）
     ↓
 将坐标数组硬编码入 Leaflet polyline
     ↓
@@ -275,6 +301,12 @@ var route = L.polyline(route_p, {
 ## 阶段三：UI 定制（手工注入）
 
 阶段三对阶段二产出的 HTML 骨架手工注入以下 8 项 UI 组件。每一项是**强制规则**。注入顺序严格遵循清单编号，不可跳项。
+
+**开始前检查：**
+```
+□ 打开 HTML 文件 → preview_url → 确认至少能看到所有标记（菱形/圆点/文字标签）
+□ 确认每条路线颜色和线型与设计系统一致
+```
 
 **关键提醒：完成一项后立即保存并通过 preview_url 确认效果，不要全部注入完再检查。**
 
